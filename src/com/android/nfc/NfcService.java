@@ -98,6 +98,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
+import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.PowerManager;
 import android.os.PowerManager.OnThermalStatusChangedListener;
@@ -426,6 +427,8 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
     NfcInjector mNfcInjector;
     NfcEventLog mNfcEventLog;
     private DeviceHost mDeviceHost;
+    // Ported FeliCa/osaifu-keitai support (poplardcm) -- see FelicaService.java for details.
+    private ServiceExtension mServiceExtension;
     private SharedPreferences mPrefs;
     private SharedPreferences.Editor mPrefsEditor;
     private SharedPreferences mTagAppPrefListPrefs;
@@ -1073,6 +1076,7 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
         mScreenStateHelper = mNfcInjector.getScreenStateHelper();
         mContentResolver = mContext.getContentResolver();
         mDeviceHost = mNfcInjector.makeDeviceHost(this);
+        mServiceExtension = setupServiceExtension();
 
         mNfcUnlockManager = mNfcInjector.getNfcUnlockManager();
 
@@ -2790,6 +2794,29 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
             return mT4tNdefNfceeService;
         }
 
+        // Sony FeliCa vendor extension hook (poplardcm). Sony's original INfcAdapter.aidl carried
+        // getExtensionAdapter(String); AOSP's does not, and this port must not patch
+        // frameworks/base, so the call arrives as a raw transaction on the same binder
+        // (com.felicanetworks.felica.FelicaAdapter issues it with the same wire layout as an
+        // AIDL-generated proxy: interface token, String in; exception header, IBinder out).
+        static final int TRANSACTION_getExtensionAdapter = IBinder.FIRST_CALL_TRANSACTION + 0xFE0000;
+
+        @Override
+        public boolean onTransact(int code, Parcel data, Parcel reply, int flags)
+                throws RemoteException {
+            if (code != TRANSACTION_getExtensionAdapter) {
+                return super.onTransact(code, data, reply, flags);
+            }
+            data.enforceInterface(DESCRIPTOR);
+            String name = data.readString();
+            if (DBG) Log.i(TAG, "getExtensionAdapter: " + name);
+            IBinder binder = mServiceExtension != null
+                    ? mServiceExtension.getExtensionAdapter(name) : null;
+            reply.writeNoException();
+            reply.writeStrongBinder(binder);
+            return true;
+        }
+
         @Override
         public void addNfcUnlockHandler(INfcUnlockHandler unlockHandler, int[] techList) {
             NfcPermissions.enforceAdminPermissions(mContext);
@@ -4234,6 +4261,21 @@ public class NfcService implements DeviceHostListener, ForegroundUtils.Callback 
             } finally {
                 watchDog.cancel();
             }
+        }
+    }
+
+    /**
+     * Ported FeliCa/osaifu-keitai support (poplardcm). Constructs the FelicaService
+     * ServiceExtension, mirroring Sony's own NfcService.setupServiceExtension(). Failures are
+     * caught and logged rather than propagated -- a broken FeliCa hook should not prevent the
+     * rest of NFC from starting.
+     */
+    private ServiceExtension setupServiceExtension() {
+        try {
+            return new FelicaService(mContext, mDeviceHost);
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to set up FelicaService extension", t);
+            return null;
         }
     }
 

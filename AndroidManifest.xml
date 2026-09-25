@@ -89,6 +89,12 @@
                  android:memtagMode="async"
                  android:featureFlag="!com.android.nfc.flags.enable_direct_boot_aware"
     >
+        <!-- Ported FeliCa/osaifu-keitai support (poplardcm): com.felicanetworks.felica.jar,
+             see FelicaService.java. required=false so devices without the FeliCa shared
+             library (and its /etc/permissions/com.felicanetworks.felica.xml declaration)
+             still install and run this app normally. -->
+        <uses-library android:name="com.felicanetworks.felica" android:required="false" />
+
         <meta-data android:name="com.google.android.backup.api_key"
             android:value="AEdPqrEAAAAIbiKKs0wlimxeJ9y8iRIaBOH6aeb2IurmZyBHvg" />
 
@@ -173,6 +179,12 @@
                  android:defaultToDeviceProtectedStorage="true"
                  android:featureFlag="com.android.nfc.flags.enable_direct_boot_aware"
     >
+        <!-- Ported FeliCa/osaifu-keitai support (poplardcm): com.felicanetworks.felica.jar,
+             see FelicaService.java. required=false so devices without the FeliCa shared
+             library (and its /etc/permissions/com.felicanetworks.felica.xml declaration)
+             still install and run this app normally. -->
+        <uses-library android:name="com.felicanetworks.felica" android:required="false" />
+
         <meta-data android:name="com.google.android.backup.api_key"
             android:value="AEdPqrEAAAAIbiKKs0wlimxeJ9y8iRIaBOH6aeb2IurmZyBHvg" />
 

@@ -154,4 +154,6 @@ struct nfc_jni_native_data* nfc_jni_get_nat(JNIEnv* e, jobject o);
 int register_com_android_nfc_NativeNfcManager(JNIEnv* e);
 int register_com_android_nfc_NativeNfcTag(JNIEnv* e);
 int register_com_android_nfc_NativeT4tNfcee(JNIEnv* e);
+// Ported FeliCa/osaifu-keitai support (poplardcm).
+int register_com_android_nfc_dhimpl_NativeFelicaSe(JNIEnv* e);
 }  // namespace android

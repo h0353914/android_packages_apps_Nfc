@@ -28,8 +28,32 @@ java_library {
     sdk_version: "module_current",
 }
 
+// Ported FeliCa/osaifu-keitai support (poplardcm): compile-time stub for Sony's original
+// com.felicanetworks.felica shared-library jar (IFelicaAdapter/IFelicaRf/IFelicaSe AIDL
+// Stub/Proxy classes), reconstructed from SO-01K 47.2.B.5.38 factory firmware -- see project
+// memory (project_poplar_kddi_log1cs_port) for the extraction methodology.
+//
+// libs/com.felicanetworks.felica.jar here holds real host .class files (jadx-decompiled the
+// reconstructed classes.dex back to Java, then javac'd just the 3 interfaces FelicaService.java
+// actually references), NOT the dex-format runtime jar -- java_import needs class files to
+// resolve symbols and silently fails to do so against an Android dex jar. `libs` (compile-only),
+// not `static_libs`: at runtime NfcNci loads the real, dex-format
+// /system/framework/com.felicanetworks.felica.jar via <uses-library>, the exact same file the
+// client (com.felicanetworks.mfc, Mobile FeliCa Client) links against -- not a private copy
+// baked into NfcNci's own dex, and not this stub.
+// Named to exactly match the <uses-library> name in AndroidManifest.xml so Soong's
+// uses-library/class-loader-context tooling recognizes it automatically (Provides_uses_lib
+// only needs to be set explicitly when the module name and library name differ).
+java_import {
+    name: "com.felicanetworks.felica",
+    jars: ["libs/com.felicanetworks.felica.jar"],
+}
+
 java_defaults {
     name: "NfcNciDefaults",
+    libs: [
+        "com.felicanetworks.felica",
+    ],
     static_libs: [
         "android.app.flags-aconfig-java",
         "android.service.chooser.flags-aconfig-java",
@@ -81,6 +105,14 @@ android_app {
         // does not ship one in /product
         "libnfc-nci.conf-default",
     ],
+    // The <uses-library android:required="false"> declaration added to AndroidManifest.xml
+    // for the ported FeliCa/osaifu-keitai support (poplardcm) is what actually drives runtime
+    // classloader behavior (PackageManager reads it directly, independent of this build-time
+    // check). Declaring it via optional_uses_libs here instead trips a Soong panic in
+    // generateJavaUsedByApex() for a java_import-backed library, so the build-vs-manifest
+    // cross-check + AOT dexpreopt classpath-context optimization is disabled rather than fought;
+    // it only affects compiler filter, not whether the class actually loads at runtime.
+    enforce_uses_libs: false,
     lint: {
         baseline_filename: "lint-baseline-nfcnci.xml",
         warning_checks: [
@@ -115,6 +147,8 @@ android_app {
         "framework-wifi.stubs.module_lib",
         "unsupportedappusage",
     ],
+    // See the matching comment on the NfcNci module above.
+    enforce_uses_libs: false,
     // prevent NfcNciApex from using product-specific resources
     aaptflags: ["--product default"],
     apex_available: [
